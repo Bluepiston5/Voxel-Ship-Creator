@@ -258,15 +258,13 @@
     position: relative;
     overflow: hidden;
     background: #060809;
-    min-height: 300px;
+    min-height: 400px;
   }
 
   canvas {
     display: block;
     position: absolute;
     top: 0; left: 0;
-    width: 100% !important;
-    height: 100% !important;
   }
 
   .viewport-controls {
@@ -829,25 +827,25 @@ void main() {
 
 function initGL() {
   const canvas = document.getElementById('canvas');
-  // Try webgl2 first, then webgl
+  // Size canvas explicitly before getting context
+  canvas.width  = Math.max(window.innerWidth - 280, 400);
+  canvas.height = Math.max(window.innerHeight - 50, 400);
+
   gl = canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-  if (!gl) { 
-    document.getElementById('loading').textContent = 'WebGL wird nicht unterstützt!';
-    return; 
+  if (!gl) {
+    document.getElementById('loading').textContent = 'WebGL nicht verfügbar!';
+    return;
   }
 
   const vs = createShader(gl.VERTEX_SHADER, vsSource);
   const fs = createShader(gl.FRAGMENT_SHADER, fsSource);
-  
-  // Check shader compile errors
+
   if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
-    console.error('VS error:', gl.getShaderInfoLog(vs));
-    document.getElementById('loading').textContent = 'Shader Fehler: ' + gl.getShaderInfoLog(vs);
+    document.getElementById('loading').textContent = 'VS Fehler: ' + gl.getShaderInfoLog(vs);
     return;
   }
   if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-    console.error('FS error:', gl.getShaderInfoLog(fs));
-    document.getElementById('loading').textContent = 'Shader Fehler: ' + gl.getShaderInfoLog(fs);
+    document.getElementById('loading').textContent = 'FS Fehler: ' + gl.getShaderInfoLog(fs);
     return;
   }
 
@@ -855,20 +853,17 @@ function initGL() {
   gl.attachShader(program, vs);
   gl.attachShader(program, fs);
   gl.linkProgram(program);
-  
+
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.error('Link error:', gl.getProgramInfoLog(program));
     document.getElementById('loading').textContent = 'Link Fehler: ' + gl.getProgramInfoLog(program);
     return;
   }
-  
+
   gl.useProgram(program);
   gl.enable(gl.DEPTH_TEST);
   gl.clearColor(0.024, 0.047, 0.059, 1);
-  
-  // Test: draw something immediately
   gl.clear(gl.COLOR_BUFFER_BIT);
-  setStatus('WebGL OK - ' + (canvas.getContext('webgl2') ? 'WebGL2' : 'WebGL1'));
+  setStatus('WebGL OK');
 
   setupMouseEvents(canvas);
   requestAnimationFrame(drawLoop);
@@ -990,23 +985,24 @@ function translation(x, y, z) {
 }
 
 function rotY(a) {
-  const m = new Float32Array(16); const c=Math.cos(a), s=Math.sin(a);
-  m[0]=c; m[2]=s; m[5]=1; m[8]=-s; m[10]=c; m[15]=1; return m;
+  const c=Math.cos(a), s=Math.sin(a);
+  // column-major
+  return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]);
 }
 function rotX(a) {
-  const m = new Float32Array(16); const c=Math.cos(a), s=Math.sin(a);
-  m[0]=1; m[5]=c; m[6]=-s; m[9]=s; m[10]=c; m[15]=1; return m;
+  const c=Math.cos(a), s=Math.sin(a);
+  return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]);
 }
 
 function drawLoop() {
   const canvas = document.getElementById('canvas');
-  // Only resize if canvas has no size yet or window resized
-  if (canvas.width < 10 || canvas.height < 10) {
-    const vp = canvas.parentElement;
-    const w = vp.offsetWidth  || window.innerWidth;
-    const h = vp.offsetHeight || window.innerHeight - 100;
-    canvas.width  = Math.max(w, 100);
-    canvas.height = Math.max(h, 300);
+  // Resize only if needed
+  const vp = canvas.parentElement;
+  const newW = vp.offsetWidth || window.innerWidth - 280;
+  const newH = vp.offsetHeight || window.innerHeight - 50;
+  if (Math.abs(canvas.width - newW) > 10 || Math.abs(canvas.height - newH) > 10) {
+    canvas.width  = Math.max(newW, 400);
+    canvas.height = Math.max(newH, 400);
   }
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -1042,7 +1038,6 @@ function drawLoop() {
 }
 
 function setupMouseEvents(canvas) {
-  // Mouse
   canvas.addEventListener('mousedown', e => {
     if (e.button === 0) mouseState.down = true;
     if (e.button === 2) mouseState.rightDown = true;
@@ -1065,11 +1060,10 @@ function setupMouseEvents(canvas) {
   });
   canvas.addEventListener('wheel', e => {
     camera.dist = Math.max(20, camera.dist + e.deltaY * 0.3);
-    e.preventDefault();
-  }, { passive: false });
+  });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-  // Touch (iPad)
+  // Touch support for iPad
   let lastTouchDist = 0;
   canvas.addEventListener('touchstart', e => {
     e.preventDefault();
@@ -1081,13 +1075,10 @@ function setupMouseEvents(canvas) {
       mouseState.down = false;
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
-      lastTouchDist = Math.sqrt(dx*dx + dy*dy);
+      lastTouchDist = Math.sqrt(dx*dx+dy*dy);
     }
-  }, { passive: false });
-  canvas.addEventListener('touchend', e => {
-    e.preventDefault();
-    mouseState.down = false;
-  }, { passive: false });
+  }, {passive:false});
+  canvas.addEventListener('touchend', e => { e.preventDefault(); mouseState.down = false; }, {passive:false});
   canvas.addEventListener('touchmove', e => {
     e.preventDefault();
     if (e.touches.length === 1 && mouseState.down) {
@@ -1101,11 +1092,11 @@ function setupMouseEvents(canvas) {
     } else if (e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const dist = Math.sqrt(dx*dx + dy*dy);
+      const dist = Math.sqrt(dx*dx+dy*dy);
       camera.dist = Math.max(20, camera.dist - (dist - lastTouchDist) * 0.8);
       lastTouchDist = dist;
     }
-  }, { passive: false });
+  }, {passive:false});
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1144,12 +1135,6 @@ function setStatus(msg) {
 // ═══════════════════════════════════════════════════════════
 renderSegParams();
 renderColorRows();
-
-// Set canvas size before WebGL init
-const _canvas = document.getElementById('canvas');
-_canvas.width  = window.innerWidth - 280;
-_canvas.height = window.innerHeight - 50;
-
 initGL();
 </script>
 </body>
