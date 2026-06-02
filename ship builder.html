@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ship Builder</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0a0c0f;
+    --panel: #0f1318;
+    --border: #1e2830;
+    --accent: #2a7fa5;
+    --accent2: #e8a020;
+    --text: #c8d8e0;
+    --text-dim: #4a6070;
+    --green: #3a9e6a;
+    --red: #c04040;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 16px;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+
+  .status {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Left Panel ── */
+  .panel {
+    width: 280px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .panel::-webkit-scrollbar { width: 4px; }
+  .panel::-webkit-scrollbar-track { background: transparent; }
+  .panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .section {
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+  }
+
+  .section-title {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .param-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+    gap: 8px;
+  }
+
+  .param-row label {
+    width: 90px;
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  .param-row input[type=range] {
+    flex: 1;
+    height: 3px;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  .param-row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  .param-row .val {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--accent2);
+    width: 28px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .seg-tabs {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 8px;
+  }
+
+  .seg-tab {
+    flex: 1;
+    padding: 4px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
+  .seg-tab.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+
+  /* Color assignment rows */
+  .color-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+    gap: 8px;
+  }
+
+  .color-row .lbl {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    width: 70px;
+  }
+
+  .color-row select {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 2px 4px;
+    font-size: 11px;
+    font-family: 'Rajdhani', sans-serif;
+    outline: none;
+  }
+
+  .color-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* Aufbauten list */
+  .aufbau-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    padding: 4px 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+  }
+
+  .aufbau-num {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--accent2);
+    width: 16px;
+  }
+
+  .aufbau-item select {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 1px 3px;
+    font-size: 11px;
+    outline: none;
+  }
+
+  /* Buttons */
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 7px;
+    border: none;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    text-transform: uppercase;
+  }
+
+  .btn-build {
+    background: var(--accent);
+    color: white;
+  }
+
+  .btn-build:hover { background: #3a9fc5; }
+
+  .btn-export {
+    background: var(--accent2);
+    color: #0a0c0f;
+  }
+
+  .btn-export:hover { background: #f0b030; }
+
+  /* ── 3D Viewport ── */
+  .viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #060809;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .viewport-controls {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: right;
+    line-height: 1.6;
+    pointer-events: none;
+  }
+
+  .loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--accent);
+    font-size: 13px;
+    letter-spacing: 2px;
+  }
+
+  .upload-zone {
+    border: 1px dashed var(--border);
+    padding: 8px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    margin-bottom: 6px;
+    transition: border-color 0.2s;
+  }
+  .upload-zone:hover { border-color: var(--accent); }
+
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>◈ SHIP BUILDER</h1>
+  <span style="color:var(--text-dim); font-size:12px;">Warship Voxel Generator</span>
+  <div class="status" id="status">READY</div>
+</header>
+
+<div class="main">
+
+  <!-- ── Left Panel ── -->
+  <div class="panel">
+
+    <!-- Images -->
+    <div class="section">
+      <div class="section-title">Referenzbilder</div>
+      <label class="upload-zone" for="img-side">
+        📐 Seitenansicht hochladen
+        <input type="file" id="img-side" accept="image/*">
+      </label>
+      <label class="upload-zone" for="img-top">
+        🗺 Draufsicht hochladen
+        <input type="file" id="img-top" accept="image/*">
+      </label>
+      <button class="btn btn-build" style="width:100%; margin-top:4px" onclick="analyzeImages()">
+        BILDER ANALYSIEREN
+      </button>
+    </div>
+
+    <!-- Dimensionen -->
+    <div class="section">
+      <div class="section-title">Dimensionen</div>
+      <div class="param-row">
+        <label>Länge</label>
+        <input type="range" id="p-länge" min="50" max="400" value="200" oninput="updateVal(this,'v-länge')">
+        <span class="val" id="v-länge">200</span>
+      </div>
+      <div class="param-row">
+        <label>Breite</label>
+        <input type="range" id="p-breite" min="10" max="80" value="30" oninput="updateVal(this,'v-breite')">
+        <span class="val" id="v-breite">30</span>
+      </div>
+      <div class="param-row">
+        <label>Tiefgang</label>
+        <input type="range" id="p-tiefgang" min="2" max="20" value="8" oninput="updateVal(this,'v-tiefgang')">
+        <span class="val" id="v-tiefgang">8</span>
+      </div>
+      <div class="param-row">
+        <label>Freibord</label>
+        <input type="range" id="p-freibord" min="2" max="20" value="10" oninput="updateVal(this,'v-freibord')">
+        <span class="val" id="v-freibord">10</span>
+      </div>
+    </div>
+
+    <!-- Segment Dents -->
+    <div class="section">
+      <div class="section-title">Segment Dents</div>
+      <div class="seg-tabs">
+        <button class="seg-tab active" onclick="switchSeg('bug',this)">BUG</button>
+        <button class="seg-tab" onclick="switchSeg('mitte',this)">MITTE</button>
+        <button class="seg-tab" onclick="switchSeg('heck',this)">HECK</button>
+      </div>
+      <div id="seg-params">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <!-- Farben -->
+    <div class="section">
+      <div class="section-title">Rumpf Farben</div>
+      <div id="color-rows"><!-- filled by JS --></div>
+    </div>
+
+    <!-- Aufbauten -->
+    <div class="section">
+      <div class="section-title">Aufbauten <span id="aufbau-count" style="color:var(--text-dim)">(0 erkannt)</span></div>
+      <div id="aufbau-list">
+        <div style="font-size:11px; color:var(--text-dim)">Bilder analysieren um Aufbauten zu erkennen</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-build" onclick="buildShip()">▶ BAUEN</button>
+      <button class="btn btn-export" onclick="exportSchem()">↓ .SCHEM</button>
+    </div>
+
+  </div><!-- /panel -->
+
+  <!-- ── 3D Viewport ── -->
+  <div class="viewport">
+    <canvas id="canvas"></canvas>
+    <div class="loading" id="loading">KLICKE "BAUEN" UM ZU STARTEN</div>
+    <div class="viewport-controls">
+      LMB: Drehen &nbsp;|&nbsp; RMB: Verschieben &nbsp;|&nbsp; Scroll: Zoom
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// WOOL COLOR TABLE
+// ═══════════════════════════════════════════════════════════
+const WOOL_HEX = {
+  white:      '#f0f0f0',
+  orange:     '#e07020',
+  magenta:    '#c040b0',
+  light_blue: '#50a0d0',
+  yellow:     '#e8c020',
+  lime:       '#60c030',
+  pink:       '#e070a0',
+  gray:       '#606060',
+  light_gray: '#9aA0A0',
+  cyan:       '#206080',
+  purple:     '#7030a0',
+  blue:       '#2030a0',
+  brown:      '#704020',
+  green:      '#306020',
+  red:        '#b02020',
+  black:      '#181818',
+};
+
+const WOOL_NAMES = Object.keys(WOOL_HEX);
+
+// ═══════════════════════════════════════════════════════════
+// PARAMETERS STATE
+// ═══════════════════════════════════════════════════════════
+let currentSeg = 'bug';
+
+const segDents = {
+  bug:   { kiel: -2, wulst: 2, wasserlinie: -1, seite: 0 },
+  mitte: { kiel:  0, wulst: 3, wasserlinie: -2, seite: 0 },
+  heck:  { kiel: -1, wulst: 1, wasserlinie: -1, seite: 0 },
+};
+
+const colors = {
+  rumpf:       'gray',
+  kiel:        'black',
+  deck:        'brown',
+  wasserlinie: 'white',
+};
+
+let aufbauColors = {}; // aufbau_1 .. aufbau_N
+let detectedAufbauten = 0;
+
+// ═══════════════════════════════════════════════════════════
+// UI INIT
+// ═══════════════════════════════════════════════════════════
+function updateVal(input, valId) {
+  document.getElementById(valId).textContent = input.value;
+}
+
+function switchSeg(seg, btn) {
+  currentSeg = seg;
+  document.querySelectorAll('.seg-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSegParams();
+}
+
+function renderSegParams() {
+  const d = segDents[currentSeg];
+  const container = document.getElementById('seg-params');
+  container.innerHTML = '';
+  const defs = [
+    ['kiel',        'Kiel',        -6, 6],
+    ['wulst',       'Wulst',       -4, 8],
+    ['wasserlinie', 'Wasserlinie', -6, 4],
+    ['seite',       'Seite',       -4, 4],
+  ];
+  defs.forEach(([key, label, min, max]) => {
+    const row = document.createElement('div');
+    row.className = 'param-row';
+    row.innerHTML = `
+      <label>${label}</label>
+      <input type="range" min="${min}" max="${max}" value="${d[key]}" step="0.5"
+        oninput="segDents['${currentSeg}']['${key}']=parseFloat(this.value); this.nextElementSibling.textContent=this.value">
+      <span class="val">${d[key]}</span>`;
+    container.appendChild(row);
+  });
+}
+
+function renderColorRows() {
+  const container = document.getElementById('color-rows');
+  container.innerHTML = '';
+  const defs = [
+    ['rumpf',       'Rumpf'],
+    ['kiel',        'Kiel'],
+    ['deck',        'Deck'],
+    ['wasserlinie', 'Wasserlinie'],
+  ];
+  defs.forEach(([key, label]) => {
+    const row = document.createElement('div');
+    row.className = 'color-row';
+    const sel = buildColorSelect(colors[key], (v) => { colors[key] = v; });
+    const swatch = document.createElement('div');
+    swatch.className = 'color-swatch';
+    swatch.style.background = WOOL_HEX[colors[key]];
+    row.innerHTML = `<span class="lbl">${label}</span>`;
+    sel.onchange = function() { colors[key] = this.value; swatch.style.background = WOOL_HEX[this.value]; };
+    row.appendChild(sel);
+    row.appendChild(swatch);
+    container.appendChild(row);
+  });
+}
+
+function buildColorSelect(current, onchange) {
+  const sel = document.createElement('select');
+  WOOL_NAMES.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name.replace('_', ' ');
+    if (name === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  return sel;
+}
+
+function renderAufbauList() {
+  const container = document.getElementById('aufbau-list');
+  const countEl = document.getElementById('aufbau-count');
+  if (detectedAufbauten === 0) {
+    countEl.textContent = '(0 erkannt)';
+    container.innerHTML = '<div style="font-size:11px;color:var(--text-dim)">Bilder analysieren um Aufbauten zu erkennen</div>';
+    return;
+  }
+  countEl.textContent = `(${detectedAufbauten} erkannt)`;
+  container.innerHTML = '';
+  const aufbauWoolDefaults = ['light_gray','yellow','orange','lime','cyan','pink','purple','red'];
+  for (let i = 1; i <= detectedAufbauten; i++) {
+    const key = `aufbau_${i}`;
+    if (!aufbauColors[key]) aufbauColors[key] = aufbauWoolDefaults[(i-1) % aufbauWoolDefaults.length];
+    const item = document.createElement('div');
+    item.className = 'aufbau-item';
+    const num = document.createElement('span');
+    num.className = 'aufbau-num';
+    num.textContent = `#${i}`;
+    const swatch = document.createElement('div');
+    swatch.className = 'color-swatch';
+    swatch.style.background = WOOL_HEX[aufbauColors[key]];
+    const sel = buildColorSelect(aufbauColors[key], null);
+    sel.onchange = function() {
+      aufbauColors[key] = this.value;
+      swatch.style.background = WOOL_HEX[this.value];
+    };
+    item.appendChild(num);
+    item.appendChild(sel);
+    item.appendChild(swatch);
+    container.appendChild(item);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// IMAGE ANALYSIS (blob detection via canvas)
+// ═══════════════════════════════════════════════════════════
+let sideImageData = null;
+let topImageData  = null;
+
+document.getElementById('img-side').onchange = function(e) {
+  loadImageToData(e.target.files[0], (data) => { sideImageData = data; setStatus('Seitenansicht geladen'); });
+};
+document.getElementById('img-top').onchange = function(e) {
+  loadImageToData(e.target.files[0], (data) => { topImageData = data; setStatus('Draufsicht geladen'); });
+};
+
+function loadImageToData(file, cb) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      cb(c.getContext('2d').getImageData(0, 0, c.width, c.height));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function analyzeImages() {
+  if (!sideImageData) { setStatus('Keine Seitenansicht geladen!'); return; }
+  setStatus('Analysiere...');
+
+  // Extract silhouette from side image
+  const { width, height, data } = sideImageData;
+
+  // Find hull bottom and top per column
+  const hullTop    = new Array(width).fill(height);
+  const hullBottom = new Array(width).fill(0);
+
+  for (let x = 0; x < width; x++) {
+    for (let y = 0; y < height; y++) {
+      const i = (y * width + x) * 4;
+      const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
+      if (brightness < 200) { // dark pixel = ship
+        if (y < hullTop[x])    hullTop[x]    = y;
+        if (y > hullBottom[x]) hullBottom[x] = y;
+      }
+    }
+  }
+
+  // Find overall hull baseline (lowest point that spans >50% of width)
+  const validCols = hullBottom.filter(v => v > 0);
+  const hullBase  = Math.round(validCols.reduce((a,b)=>a+b,0)/validCols.length);
+  const mainDeck  = Math.round(hullTop.filter(v => v < height).reduce((a,b)=>a+b,0) / width * 0.7);
+
+  // Blob detection: connected components ABOVE mainDeck
+  const blobMap = new Int32Array(width * height);
+  let blobId = 0;
+  const blobSizes = {};
+
+  for (let x = 0; x < width; x++) {
+    for (let y = 0; y < height; y++) {
+      const i = (y * width + x) * 4;
+      const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
+      if (brightness < 200 && y < mainDeck) {
+        // Check left and top neighbors
+        const left = x > 0 ? blobMap[y * width + x - 1] : 0;
+        const top  = y > 0 ? blobMap[(y-1) * width + x] : 0;
+        if (left > 0) {
+          blobMap[y * width + x] = left;
+          blobSizes[left] = (blobSizes[left] || 0) + 1;
+        } else if (top > 0) {
+          blobMap[y * width + x] = top;
+          blobSizes[top] = (blobSizes[top] || 0) + 1;
+        } else {
+          blobId++;
+          blobMap[y * width + x] = blobId;
+          blobSizes[blobId] = 1;
+        }
+      }
+    }
+  }
+
+  // Filter small blobs (noise), sort by X position
+  const minSize = width * height * 0.001;
+  const validBlobs = Object.entries(blobSizes)
+    .filter(([,size]) => size > minSize)
+    .map(([id]) => parseInt(id));
+
+  // Find centroid X of each blob
+  const blobCentroids = {};
+  validBlobs.forEach(id => { blobCentroids[id] = { sumX: 0, count: 0 }; });
+
+  for (let x = 0; x < width; x++) {
+    for (let y = 0; y < height; y++) {
+      const id = blobMap[y * width + x];
+      if (blobCentroids[id]) {
+        blobCentroids[id].sumX += x;
+        blobCentroids[id].count++;
+      }
+    }
+  }
+
+  // Sort blobs left-to-right
+  const sorted = validBlobs.sort((a, b) =>
+    blobCentroids[a].sumX / blobCentroids[a].count -
+    blobCentroids[b].sumX / blobCentroids[b].count
+  );
+
+  detectedAufbauten = sorted.length;
+  setStatus(`${detectedAufbauten} Aufbauten erkannt`);
+  renderAufbauList();
+}
+
+// ═══════════════════════════════════════════════════════════
+// SHIP GEOMETRY GENERATION (JS port of Python logic)
+// ═══════════════════════════════════════════════════════════
+let shipBlocks = null; // array of {x,y,z,color}
+
+function getParams() {
+  return {
+    länge:    parseInt(document.getElementById('p-länge').value),
+    breite:   parseInt(document.getElementById('p-breite').value),
+    tiefgang: parseInt(document.getElementById('p-tiefgang').value),
+    freibord: parseInt(document.getElementById('p-freibord').value),
+  };
+}
+
+function smoothstep(t) { return t * t * (3 - 2 * t); }
+
+function segmentParams(xFrac) {
+  const bug   = segDents.bug;
+  const mid   = segDents.mitte;
+  const heck  = segDents.heck;
+  const lerp  = (a, b, t) => a + (b - a) * t;
+
+  if (xFrac < 0.25) {
+    const t = smoothstep(xFrac / 0.25);
+    return { kiel: lerp(bug.kiel, mid.kiel, t), wulst: lerp(bug.wulst, mid.wulst, t),
+             wasserlinie: lerp(bug.wasserlinie, mid.wasserlinie, t), seite: lerp(bug.seite, mid.seite, t) };
+  } else if (xFrac < 0.75) {
+    return { ...mid };
+  } else {
+    const t = smoothstep((xFrac - 0.75) / 0.25);
+    return { kiel: lerp(mid.kiel, heck.kiel, t), wulst: lerp(mid.wulst, heck.wulst, t),
+             wasserlinie: lerp(mid.wasserlinie, heck.wasserlinie, t), seite: lerp(mid.seite, heck.seite, t) };
+  }
+}
+
+function buildShip() {
+  setStatus('Baue Rumpf...');
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('loading').textContent = 'BERECHNE...';
+
+  setTimeout(() => {
+    const p    = getParams();
+    const L    = p.länge;
+    const B    = p.breite;
+    const D    = p.tiefgang;
+    const F    = p.freibord;
+    const H    = D + F;
+    const halfZ = Math.floor(B / 2) + 6;
+
+    // Build half-ship as 3D array
+    const grid = new Map(); // key: "x,y,z" => colorName
+    const key  = (x,y,z) => `${x},${y},${z}`;
+
+    for (let x = 0; x < L; x++) {
+      const xFrac = x / (L - 1);
+      const seg   = segmentParams(xFrac);
+
+      let halfW = B / 2;
+      if (xFrac < 0.15)      halfW = B / 2 * Math.sqrt(xFrac / 0.15);
+      else if (xFrac > 0.85) halfW = B / 2 * Math.sqrt((1 - xFrac) / 0.15);
+
+      let localH = H;
+      if (xFrac < 0.05)      localH = Math.max(2, Math.round(H * xFrac / 0.05));
+      else if (xFrac > 0.95) localH = Math.max(2, Math.round(H * (1 - xFrac) / 0.05));
+
+      for (let z = 0; z <= halfZ; z++) {
+        const zFrac = z / (halfW + 0.001);
+
+        // Effective width with dents
+        let effW = halfW;
+        if (zFrac < 1.2) {
+          const bulgeFactor = Math.exp(-Math.pow(zFrac - 0.7, 2) / 0.1);
+          effW += seg.wulst * bulgeFactor;
+          const tumbleFactor = Math.exp(-Math.pow(zFrac - 1.0, 2) / 0.05);
+          effW += seg.wasserlinie * tumbleFactor;
+        }
+
+        if (z > effW + 1) continue;
+
+        for (let y = 0; y < localH; y++) {
+          // Keel V-shape
+          if (seg.kiel < 0 && z < Math.abs(seg.kiel) * (1 - y / localH)) continue;
+
+          if (z <= effW) {
+            let color;
+            if (y === 0)          color = colors.kiel;
+            else if (y === localH - 1) color = colors.deck;
+            else if (y === D)     color = colors.wasserlinie;
+            else                  color = colors.rumpf;
+            grid.set(key(x, y, z), color);
+          }
+        }
+      }
+    }
+
+    // Hollow: keep only surface blocks
+    const hollowGrid = new Map();
+    const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+    for (const [k, color] of grid) {
+      const [x,y,z] = k.split(',').map(Number);
+      let isSurface = false;
+      for (const [dx,dy,dz] of dirs) {
+        if (!grid.has(key(x+dx, y+dy, z+dz))) { isSurface = true; break; }
+      }
+      if (isSurface) hollowGrid.set(k, color);
+    }
+
+    // Mirror Z
+    const finalZ = halfZ * 2;
+    const blocks = [];
+    for (const [k, color] of hollowGrid) {
+      const [x,y,z] = k.split(',').map(Number);
+      blocks.push({ x, y, z, color });
+      if (z > 0) blocks.push({ x, y, z: finalZ - z, color });
+    }
+
+    shipBlocks = blocks;
+    setStatus(`${blocks.length} Blöcke`);
+    renderScene(blocks, L, H, finalZ);
+    document.getElementById('loading').style.display = 'none';
+  }, 10);
+}
+
+// ═══════════════════════════════════════════════════════════
+// 3D RENDERER (WebGL via raw canvas, simple voxel renderer)
+// ═══════════════════════════════════════════════════════════
+let gl, program;
+let camera = { yaw: 0.4, pitch: 0.3, dist: 280, tx: 0, ty: 0 };
+let mouseState = { down: false, rightDown: false, lastX: 0, lastY: 0 };
+let voxelBuffers = null;
+let shipDims = { L: 200, H: 20, Z: 60 };
+
+const vsSource = `
+attribute vec3 aPos;
+attribute vec3 aColor;
+attribute vec3 aNormal;
+uniform mat4 uMVP;
+varying vec3 vColor;
+varying vec3 vNormal;
+void main() {
+  gl_Position = uMVP * vec4(aPos, 1.0);
+  vColor = aColor;
+  vNormal = aNormal;
+}`;
+
+const fsSource = `
+precision mediump float;
+varying vec3 vColor;
+varying vec3 vNormal;
+void main() {
+  vec3 light = normalize(vec3(1.0, 2.0, 1.5));
+  float diff = max(dot(vNormal, light), 0.0) * 0.6 + 0.4;
+  gl_FragColor = vec4(vColor * diff, 1.0);
+}`;
+
+function initGL() {
+  const canvas = document.getElementById('canvas');
+  gl = canvas.getContext('webgl');
+  if (!gl) { alert('WebGL not supported'); return; }
+
+  const vs = createShader(gl.VERTEX_SHADER, vsSource);
+  const fs = createShader(gl.FRAGMENT_SHADER, fsSource);
+  program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  gl.useProgram(program);
+  gl.enable(gl.DEPTH_TEST);
+  gl.clearColor(0.024, 0.047, 0.059, 1);
+
+  setupMouseEvents(canvas);
+  requestAnimationFrame(drawLoop);
+}
+
+function createShader(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  return s;
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16)/255;
+  const g = parseInt(hex.slice(3,5),16)/255;
+  const b = parseInt(hex.slice(5,7),16)/255;
+  return [r, g, b];
+}
+
+// Build cube geometry for all blocks
+function buildVoxelMesh(blocks) {
+  const positions = [];
+  const colorArr  = [];
+  const normals   = [];
+
+  // Cube face definitions: [normal, 4 vertices offsets]
+  const faces = [
+    { n: [0,0,1],  verts: [[0,0,1],[1,0,1],[1,1,1],[0,1,1]] }, // front +Z
+    { n: [0,0,-1], verts: [[1,0,0],[0,0,0],[0,1,0],[1,1,0]] }, // back -Z
+    { n: [0,1,0],  verts: [[0,1,0],[1,1,0],[1,1,1],[0,1,1]] }, // top
+    { n: [0,-1,0], verts: [[0,0,1],[1,0,1],[1,0,0],[0,0,0]] }, // bottom
+    { n: [1,0,0],  verts: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]] }, // right
+    { n: [-1,0,0], verts: [[0,0,1],[0,1,1],[0,1,0],[0,0,0]] }, // left
+  ];
+
+  // Build fast lookup set
+  const blockSet = new Set(blocks.map(b => `${b.x},${b.y},${b.z}`));
+
+  // Only add faces that face air (skip interior)
+  const neighbDirs = [[0,0,1],[0,0,-1],[0,1,0],[0,-1,0],[1,0,0],[-1,0,0]];
+
+  for (const block of blocks) {
+    const { x, y, z, color } = block;
+    const rgb = hexToRgb(WOOL_HEX[color] || '#606060');
+
+    faces.forEach((face, fi) => {
+      const [nx, ny, nz] = neighbDirs[fi];
+      if (blockSet.has(`${x+nx},${y+ny},${z+nz}`)) return; // face hidden
+
+      const [v0,v1,v2,v3] = face.verts;
+      const quads = [[v0,v1,v2],[v0,v2,v3]];
+      quads.forEach(tri => {
+        tri.forEach(v => {
+          positions.push(x + v[0], y + v[1], z + v[2]);
+          colorArr.push(...rgb);
+          normals.push(...face.n);
+        });
+      });
+    });
+  }
+
+  return { positions: new Float32Array(positions), colors: new Float32Array(colorArr), normals: new Float32Array(normals) };
+}
+
+function uploadMesh(mesh) {
+  const makeBuf = (data, attr, size) => {
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(program, attr);
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+    return buf;
+  };
+  if (voxelBuffers) {
+    [voxelBuffers.pos, voxelBuffers.col, voxelBuffers.nor].forEach(b => gl.deleteBuffer(b));
+  }
+  voxelBuffers = {
+    pos:   makeBuf(mesh.positions, 'aPos',    3),
+    col:   makeBuf(mesh.colors,    'aColor',  3),
+    nor:   makeBuf(mesh.normals,   'aNormal', 3),
+    count: mesh.positions.length / 3,
+  };
+}
+
+function renderScene(blocks, L, H, Z) {
+  shipDims = { L, H, Z };
+  setStatus('Erstelle Mesh...');
+  setTimeout(() => {
+    const mesh = buildVoxelMesh(blocks);
+    uploadMesh(mesh);
+    setStatus(`${blocks.length} Blöcke · ${Math.round(mesh.positions.length/3/1000)}k Dreiecke`);
+    camera.tx = -L / 2; camera.ty = -H / 2;
+  }, 10);
+}
+
+// ── Matrix math ──
+function mat4Mul(a, b) {
+  const r = new Float32Array(16);
+  for (let i = 0; i < 4; i++)
+    for (let j = 0; j < 4; j++)
+      for (let k = 0; k < 4; k++)
+        r[i*4+j] += a[i*4+k] * b[k*4+j];
+  return r;
+}
+
+function perspective(fov, aspect, near, far) {
+  const f = 1 / Math.tan(fov / 2);
+  const m = new Float32Array(16);
+  m[0] = f / aspect; m[5] = f;
+  m[10] = (far+near)/(near-far); m[11] = -1;
+  m[14] = 2*far*near/(near-far);
+  return m;
+}
+
+function translation(x, y, z) {
+  const m = new Float32Array(16);
+  m[0]=m[5]=m[10]=m[15]=1; m[12]=x; m[13]=y; m[14]=z; return m;
+}
+
+function rotY(a) {
+  const m = new Float32Array(16); const c=Math.cos(a), s=Math.sin(a);
+  m[0]=c; m[2]=s; m[5]=1; m[8]=-s; m[10]=c; m[15]=1; return m;
+}
+function rotX(a) {
+  const m = new Float32Array(16); const c=Math.cos(a), s=Math.sin(a);
+  m[0]=1; m[5]=c; m[6]=-s; m[9]=s; m[10]=c; m[15]=1; return m;
+}
+
+function drawLoop() {
+  const canvas = document.getElementById('canvas');
+  canvas.width  = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  if (voxelBuffers) {
+    const { L, H, Z } = shipDims;
+    const proj = perspective(Math.PI/4, canvas.width/canvas.height, 0.5, 2000);
+    const view = mat4Mul(
+      translation(camera.tx, camera.ty, -camera.dist),
+      mat4Mul(rotX(camera.pitch), rotY(camera.yaw))
+    );
+    // Center ship
+    const model = translation(-L/2, -H/2, -Z/2);
+    const mvp = mat4Mul(proj, mat4Mul(view, model));
+
+    const uMVP = gl.getUniformLocation(program, 'uMVP');
+    gl.uniformMatrix4fv(uMVP, false, mvp);
+
+    // Rebind buffers
+    const bindBuf = (buf, attr, size) => {
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      const loc = gl.getAttribLocation(program, attr);
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+    };
+    bindBuf(voxelBuffers.pos, 'aPos', 3);
+    bindBuf(voxelBuffers.col, 'aColor', 3);
+    bindBuf(voxelBuffers.nor, 'aNormal', 3);
+    gl.drawArrays(gl.TRIANGLES, 0, voxelBuffers.count);
+  }
+
+  requestAnimationFrame(drawLoop);
+}
+
+function setupMouseEvents(canvas) {
+  canvas.addEventListener('mousedown', e => {
+    if (e.button === 0) mouseState.down = true;
+    if (e.button === 2) mouseState.rightDown = true;
+    mouseState.lastX = e.clientX; mouseState.lastY = e.clientY;
+  });
+  canvas.addEventListener('mouseup', () => { mouseState.down = mouseState.rightDown = false; });
+  canvas.addEventListener('mousemove', e => {
+    const dx = e.clientX - mouseState.lastX;
+    const dy = e.clientY - mouseState.lastY;
+    if (mouseState.down) {
+      camera.yaw   += dx * 0.005;
+      camera.pitch += dy * 0.005;
+      camera.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.pitch));
+    }
+    if (mouseState.rightDown) {
+      camera.tx += dx * 0.3;
+      camera.ty -= dy * 0.3;
+    }
+    mouseState.lastX = e.clientX; mouseState.lastY = e.clientY;
+  });
+  canvas.addEventListener('wheel', e => {
+    camera.dist = Math.max(20, camera.dist + e.deltaY * 0.3);
+  });
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════
+function exportSchem() {
+  if (!shipBlocks) { setStatus('Zuerst bauen!'); return; }
+
+  // Export as JSON (parameters + block list) for Python to convert
+  const p = getParams();
+  const exportData = {
+    params: {
+      ...p,
+      bug:   segDents.bug,
+      mitte: segDents.mitte,
+      heck:  segDents.heck,
+      farben: { ...colors, ...aufbauColors },
+    },
+    blocks: shipBlocks.map(b => [b.x, b.y, b.z, b.color]),
+  };
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ship_params.json';
+  a.click();
+  setStatus('ship_params.json exportiert — mit Python zu .schem konvertieren');
+}
+
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+renderSegParams();
+renderColorRows();
+initGL();
+</script>
+</body>
+</html>
