@@ -304,12 +304,13 @@
 
   input[type=file] { display: none; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
 <header>
   <h1>◈ SHIP BUILDER</h1>
-  <span style="color:var(--text-dim); font-size:12px;">Warship Voxel Generator</span><span style="font-family:Share Tech Mono,monospace; font-size:10px; color:var(--accent2); margin-left:8px;">v0.4</span>
+  <span style="color:var(--text-dim); font-size:12px;">Warship Voxel Generator</span><span style="font-family:Share Tech Mono,monospace; font-size:10px; color:var(--accent2); margin-left:8px;">v0.5</span>
   <div class="status" id="status">READY</div>
 </header>
 
@@ -794,307 +795,161 @@ function buildShip() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 3D RENDERER (WebGL via raw canvas, simple voxel renderer)
+// 3D RENDERER — Three.js
 // ═══════════════════════════════════════════════════════════
-let gl, program;
-let camera = { yaw: 0.4, pitch: 0.3, dist: 280, tx: 0, ty: 0 };
-let mouseState = { down: false, rightDown: false, lastX: 0, lastY: 0 };
-let voxelBuffers = null;
+let threeScene, threeCamera, threeRenderer, threeMesh;
 let shipDims = { L: 200, H: 20, Z: 60 };
 
-const vsSource = `
-attribute vec3 aPos;
-attribute vec3 aColor;
-attribute vec3 aNormal;
-uniform mat4 uMVP;
-varying vec3 vColor;
-varying vec3 vNormal;
-void main() {
-  gl_Position = uMVP * vec4(aPos, 1.0);
-  vColor = aColor;
-  vNormal = aNormal;
-}`;
-
-const fsSource = `
-precision mediump float;
-varying vec3 vColor;
-varying vec3 vNormal;
-void main() {
-  vec3 light = normalize(vec3(1.0, 2.0, 1.5));
-  float diff = max(dot(vNormal, light), 0.0) * 0.6 + 0.4;
-  gl_FragColor = vec4(vColor * diff, 1.0);
-}`;
-
 function initGL() {
+  if (typeof THREE === 'undefined') {
+    document.getElementById('loading').textContent = 'Three.js lädt...';
+    setTimeout(initGL, 200);
+    return;
+  }
   const canvas = document.getElementById('canvas');
-  // Size canvas explicitly before getting context
-  canvas.width  = Math.max(window.innerWidth - 280, 400);
-  canvas.height = Math.max(window.innerHeight - 50, 400);
+  const vp = canvas.parentElement;
 
-  gl = canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-  if (!gl) {
-    document.getElementById('loading').textContent = 'WebGL nicht verfügbar!';
-    return;
-  }
+  threeRenderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+  threeRenderer.setSize(vp.offsetWidth || 800, vp.offsetHeight || 600);
+  threeRenderer.setClearColor(0x060809);
+  threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  const vs = createShader(gl.VERTEX_SHADER, vsSource);
-  const fs = createShader(gl.FRAGMENT_SHADER, fsSource);
+  threeScene = new THREE.Scene();
 
-  if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
-    document.getElementById('loading').textContent = 'VS Fehler: ' + gl.getShaderInfoLog(vs);
-    return;
-  }
-  if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-    document.getElementById('loading').textContent = 'FS Fehler: ' + gl.getShaderInfoLog(fs);
-    return;
-  }
+  threeCamera = new THREE.PerspectiveCamera(45, (vp.offsetWidth||800)/(vp.offsetHeight||600), 0.5, 5000);
+  threeCamera.position.set(0, 40, 300);
+  threeCamera.lookAt(0, 0, 0);
 
-  program = gl.createProgram();
-  gl.attachShader(program, vs);
-  gl.attachShader(program, fs);
-  gl.linkProgram(program);
-
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    document.getElementById('loading').textContent = 'Link Fehler: ' + gl.getProgramInfoLog(program);
-    return;
-  }
-
-  gl.useProgram(program);
-  gl.enable(gl.DEPTH_TEST);
-  gl.clearColor(0.024, 0.047, 0.059, 1);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  setStatus('WebGL OK');
+  // Lights
+  const amb = new THREE.AmbientLight(0xffffff, 0.5);
+  threeScene.add(amb);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(1, 2, 1.5);
+  threeScene.add(dir);
 
   setupMouseEvents(canvas);
-  requestAnimationFrame(drawLoop);
+  setStatus('Three.js OK — Klicke BAUEN');
+  document.getElementById('loading').style.display = 'none';
+
+  window.addEventListener('resize', () => {
+    const w = vp.offsetWidth || 800;
+    const h = vp.offsetHeight || 600;
+    threeRenderer.setSize(w, h);
+    threeCamera.aspect = w / h;
+    threeCamera.updateProjectionMatrix();
+  });
+
+  animate();
 }
 
-function createShader(type, src) {
-  const s = gl.createShader(type);
-  gl.shaderSource(s, src);
-  gl.compileShader(s);
-  return s;
-}
-
-function hexToRgb(hex) {
-  const r = parseInt(hex.slice(1,3),16)/255;
-  const g = parseInt(hex.slice(3,5),16)/255;
-  const b = parseInt(hex.slice(5,7),16)/255;
-  return [r, g, b];
-}
-
-// Build cube geometry for all blocks
-function buildVoxelMesh(blocks) {
-  const positions = [];
-  const colorArr  = [];
-  const normals   = [];
-
-  // Cube face definitions: [normal, 4 vertices offsets]
-  const faces = [
-    { n: [0,0,1],  verts: [[0,0,1],[1,0,1],[1,1,1],[0,1,1]] }, // front +Z
-    { n: [0,0,-1], verts: [[1,0,0],[0,0,0],[0,1,0],[1,1,0]] }, // back -Z
-    { n: [0,1,0],  verts: [[0,1,0],[1,1,0],[1,1,1],[0,1,1]] }, // top
-    { n: [0,-1,0], verts: [[0,0,1],[1,0,1],[1,0,0],[0,0,0]] }, // bottom
-    { n: [1,0,0],  verts: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]] }, // right
-    { n: [-1,0,0], verts: [[0,0,1],[0,1,1],[0,1,0],[0,0,0]] }, // left
-  ];
-
-  // Build fast lookup set
-  const blockSet = new Set(blocks.map(b => `${b.x},${b.y},${b.z}`));
-
-  // Only add faces that face air (skip interior)
-  const neighbDirs = [[0,0,1],[0,0,-1],[0,1,0],[0,-1,0],[1,0,0],[-1,0,0]];
-
-  for (const block of blocks) {
-    const { x, y, z, color } = block;
-    const rgb = hexToRgb(WOOL_HEX[color] || '#606060');
-
-    faces.forEach((face, fi) => {
-      const [nx, ny, nz] = neighbDirs[fi];
-      if (blockSet.has(`${x+nx},${y+ny},${z+nz}`)) return; // face hidden
-
-      const [v0,v1,v2,v3] = face.verts;
-      const quads = [[v0,v1,v2],[v0,v2,v3]];
-      quads.forEach(tri => {
-        tri.forEach(v => {
-          positions.push(x + v[0], y + v[1], z + v[2]);
-          colorArr.push(...rgb);
-          normals.push(...face.n);
-        });
-      });
-    });
-  }
-
-  return { positions: new Float32Array(positions), colors: new Float32Array(colorArr), normals: new Float32Array(normals) };
-}
-
-function uploadMesh(mesh) {
-  const makeBuf = (data, attr, size) => {
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-    const loc = gl.getAttribLocation(program, attr);
-    gl.enableVertexAttribArray(loc);
-    gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
-    return buf;
-  };
-  if (voxelBuffers) {
-    [voxelBuffers.pos, voxelBuffers.col, voxelBuffers.nor].forEach(b => gl.deleteBuffer(b));
-  }
-  voxelBuffers = {
-    pos:   makeBuf(mesh.positions, 'aPos',    3),
-    col:   makeBuf(mesh.colors,    'aColor',  3),
-    nor:   makeBuf(mesh.normals,   'aNormal', 3),
-    count: mesh.positions.length / 3,
-  };
+function animate() {
+  requestAnimationFrame(animate);
+  threeRenderer.render(threeScene, threeCamera);
 }
 
 function renderScene(blocks, L, H, Z) {
   shipDims = { L, H, Z };
   setStatus('Erstelle Mesh...');
+
   setTimeout(() => {
-    const mesh = buildVoxelMesh(blocks);
-    uploadMesh(mesh);
-    setStatus(`${blocks.length} Blöcke · ${Math.round(mesh.positions.length/3/1000)}k Dreiecke`);
-    camera.tx = -L / 2; camera.ty = -H / 2;
+    // Remove old mesh
+    if (threeMesh) { threeScene.remove(threeMesh); threeMesh = null; }
+
+    // Group blocks by color for merged geometry
+    const colorGroups = {};
+    for (const b of blocks) {
+      if (!colorGroups[b.color]) colorGroups[b.color] = [];
+      colorGroups[b.color].push(b);
+    }
+
+    const group = new THREE.Group();
+    const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+
+    for (const [color, blist] of Object.entries(colorGroups)) {
+      const hex = WOOL_HEX[color] || '#606060';
+      const mat = new THREE.MeshLambertMaterial({ color: parseInt(hex.replace('#','0x')) });
+      const merged = [];
+
+      // Use InstancedMesh for performance
+      const iMesh = new THREE.InstancedMesh(boxGeo, mat, blist.length);
+      const dummy = new THREE.Object3D();
+      blist.forEach((b, i) => {
+        dummy.position.set(b.x - L/2, b.y - H/2, b.z - Z/2);
+        dummy.updateMatrix();
+        iMesh.setMatrixAt(i, dummy.matrix);
+      });
+      iMesh.instanceMatrix.needsUpdate = true;
+      group.add(iMesh);
+    }
+
+    threeScene.add(group);
+    threeMesh = group;
+
+    // Reset camera to see ship
+    threeCamera.position.set(0, H * 2, L * 0.8);
+    threeCamera.lookAt(0, 0, 0);
+
+    setStatus(`${blocks.length} Blöcke`);
   }, 10);
 }
 
-// ── Matrix math ──
-function mat4Mul(a, b) {
-  const r = new Float32Array(16);
-  for (let i = 0; i < 4; i++)
-    for (let j = 0; j < 4; j++)
-      for (let k = 0; k < 4; k++)
-        r[i*4+j] += a[i*4+k] * b[k*4+j];
-  return r;
-}
+// Camera orbit
+let isDragging = false, lastX = 0, lastY = 0;
+let spherical = { theta: 0.3, phi: 1.0, radius: 300 };
 
-function perspective(fov, aspect, near, far) {
-  const f = 1 / Math.tan(fov / 2);
-  const m = new Float32Array(16);
-  m[0] = f / aspect; m[5] = f;
-  m[10] = (far+near)/(near-far); m[11] = -1;
-  m[14] = 2*far*near/(near-far);
-  return m;
-}
-
-function translation(x, y, z) {
-  const m = new Float32Array(16);
-  m[0]=m[5]=m[10]=m[15]=1; m[12]=x; m[13]=y; m[14]=z; return m;
-}
-
-function rotY(a) {
-  const c=Math.cos(a), s=Math.sin(a);
-  // column-major
-  return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]);
-}
-function rotX(a) {
-  const c=Math.cos(a), s=Math.sin(a);
-  return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]);
-}
-
-function drawLoop() {
-  const canvas = document.getElementById('canvas');
-  // Resize only if needed
-  const vp = canvas.parentElement;
-  const newW = vp.offsetWidth || window.innerWidth - 280;
-  const newH = vp.offsetHeight || window.innerHeight - 50;
-  if (Math.abs(canvas.width - newW) > 10 || Math.abs(canvas.height - newH) > 10) {
-    canvas.width  = Math.max(newW, 400);
-    canvas.height = Math.max(newH, 400);
-  }
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-  if (voxelBuffers) {
-    const { L, H, Z } = shipDims;
-    const proj = perspective(Math.PI/4, canvas.width/canvas.height, 0.5, 2000);
-    const view = mat4Mul(
-      translation(camera.tx, camera.ty, -camera.dist),
-      mat4Mul(rotX(camera.pitch), rotY(camera.yaw))
-    );
-    // Center ship
-    const model = translation(-L/2, -H/2, -Z/2);
-    const mvp = mat4Mul(proj, mat4Mul(view, model));
-
-    const uMVP = gl.getUniformLocation(program, 'uMVP');
-    gl.uniformMatrix4fv(uMVP, false, mvp);
-
-    // Rebind buffers
-    const bindBuf = (buf, attr, size) => {
-      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-      const loc = gl.getAttribLocation(program, attr);
-      gl.enableVertexAttribArray(loc);
-      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
-    };
-    bindBuf(voxelBuffers.pos, 'aPos', 3);
-    bindBuf(voxelBuffers.col, 'aColor', 3);
-    bindBuf(voxelBuffers.nor, 'aNormal', 3);
-    gl.drawArrays(gl.TRIANGLES, 0, voxelBuffers.count);
-  }
-
-  requestAnimationFrame(drawLoop);
+function updateCamera() {
+  threeCamera.position.set(
+    spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta),
+    spherical.radius * Math.cos(spherical.phi),
+    spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta)
+  );
+  threeCamera.lookAt(0, 0, 0);
 }
 
 function setupMouseEvents(canvas) {
-  canvas.addEventListener('mousedown', e => {
-    if (e.button === 0) mouseState.down = true;
-    if (e.button === 2) mouseState.rightDown = true;
-    mouseState.lastX = e.clientX; mouseState.lastY = e.clientY;
-  });
-  canvas.addEventListener('mouseup', () => { mouseState.down = mouseState.rightDown = false; });
+  // Mouse
+  canvas.addEventListener('mousedown', e => { isDragging = true; lastX = e.clientX; lastY = e.clientY; });
+  canvas.addEventListener('mouseup',   () => isDragging = false);
   canvas.addEventListener('mousemove', e => {
-    const dx = e.clientX - mouseState.lastX;
-    const dy = e.clientY - mouseState.lastY;
-    if (mouseState.down) {
-      camera.yaw   += dx * 0.005;
-      camera.pitch += dy * 0.005;
-      camera.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.pitch));
-    }
-    if (mouseState.rightDown) {
-      camera.tx += dx * 0.3;
-      camera.ty -= dy * 0.3;
-    }
-    mouseState.lastX = e.clientX; mouseState.lastY = e.clientY;
+    if (!isDragging) return;
+    spherical.theta -= (e.clientX - lastX) * 0.005;
+    spherical.phi   = Math.max(0.1, Math.min(Math.PI-0.1, spherical.phi + (e.clientY - lastY) * 0.005));
+    lastX = e.clientX; lastY = e.clientY;
+    updateCamera();
   });
   canvas.addEventListener('wheel', e => {
-    camera.dist = Math.max(20, camera.dist + e.deltaY * 0.3);
-  });
-  canvas.addEventListener('contextmenu', e => e.preventDefault());
+    spherical.radius = Math.max(20, spherical.radius + e.deltaY * 0.5);
+    updateCamera();
+    e.preventDefault();
+  }, {passive: false});
 
-  // Touch support for iPad
+  // Touch
   let lastTouchDist = 0;
   canvas.addEventListener('touchstart', e => {
     e.preventDefault();
-    if (e.touches.length === 1) {
-      mouseState.down = true;
-      mouseState.lastX = e.touches[0].clientX;
-      mouseState.lastY = e.touches[0].clientY;
-    } else if (e.touches.length === 2) {
-      mouseState.down = false;
+    if (e.touches.length === 1) { isDragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; }
+    else if (e.touches.length === 2) {
+      isDragging = false;
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       lastTouchDist = Math.sqrt(dx*dx+dy*dy);
     }
   }, {passive:false});
-  canvas.addEventListener('touchend', e => { e.preventDefault(); mouseState.down = false; }, {passive:false});
-  canvas.addEventListener('touchmove', e => {
+  canvas.addEventListener('touchend',   e => { e.preventDefault(); isDragging = false; }, {passive:false});
+  canvas.addEventListener('touchmove',  e => {
     e.preventDefault();
-    if (e.touches.length === 1 && mouseState.down) {
-      const dx = e.touches[0].clientX - mouseState.lastX;
-      const dy = e.touches[0].clientY - mouseState.lastY;
-      camera.yaw   += dx * 0.005;
-      camera.pitch += dy * 0.005;
-      camera.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.pitch));
-      mouseState.lastX = e.touches[0].clientX;
-      mouseState.lastY = e.touches[0].clientY;
+    if (e.touches.length === 1 && isDragging) {
+      spherical.theta -= (e.touches[0].clientX - lastX) * 0.005;
+      spherical.phi    = Math.max(0.1, Math.min(Math.PI-0.1, spherical.phi + (e.touches[0].clientY - lastY) * 0.005));
+      lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+      updateCamera();
     } else if (e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       const dist = Math.sqrt(dx*dx+dy*dy);
-      camera.dist = Math.max(20, camera.dist - (dist - lastTouchDist) * 0.8);
+      spherical.radius = Math.max(20, spherical.radius - (dist - lastTouchDist) * 0.8);
       lastTouchDist = dist;
+      updateCamera();
     }
   }, {passive:false});
 }
