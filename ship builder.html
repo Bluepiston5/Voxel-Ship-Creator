@@ -972,11 +972,12 @@ function rotX(a) {
 
 function drawLoop() {
   const canvas = document.getElementById('canvas');
-  const vp = canvas.parentElement;
-  const w = vp.clientWidth  || window.innerWidth;
-  const h = vp.clientHeight || window.innerHeight - 100;
-  if (canvas.width !== w || canvas.height !== h) {
-    canvas.width  = w;
+  // Only resize if canvas has no size yet or window resized
+  if (canvas.width < 10 || canvas.height < 10) {
+    const vp = canvas.parentElement;
+    const w = vp.offsetWidth  || window.innerWidth;
+    const h = vp.offsetHeight || window.innerHeight - 100;
+    canvas.width  = Math.max(w, 100);
     canvas.height = Math.max(h, 300);
   }
   gl.viewport(0, 0, canvas.width, canvas.height);
@@ -1115,6 +1116,12 @@ function setStatus(msg) {
 // ═══════════════════════════════════════════════════════════
 renderSegParams();
 renderColorRows();
+
+// Set canvas size before WebGL init
+const _canvas = document.getElementById('canvas');
+_canvas.width  = window.innerWidth - 280;
+_canvas.height = window.innerHeight - 50;
+
 initGL();
 </script>
 </body>
